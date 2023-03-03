@@ -1,0 +1,28 @@
+enclave {
+    include "sgx_eid.h"
+    include "datatypes.h"
+    include "dh_session_protocol.h"
+    include "sgx_cpuid.h"
+
+    from "sgx_tstdc.edl" import *;
+    from "sgx_tsgxssl.edl" import *;
+    from "sgx_pthread.edl" import *;
+
+    trusted {
+        public uint32_t session_request([out] sgx_dh_msg1_t *dh_msg1, [out] uint32_t *session_id);
+        public uint32_t exchange_report([in] sgx_dh_msg2_t *dh_msg2, [out] sgx_dh_msg3_t *dh_msg3, uint32_t session_id);
+        public uint32_t generate_response([in, size = req_message_size] secure_message_t* req_message, size_t req_message_size, size_t max_payload_size, [out, size=resp_message_size] secure_message_t* resp_message, size_t resp_message_size, uint32_t session_id);
+        public uint32_t end_session(uint32_t session_id);
+        // public void ecall_print_secret_key();
+        public void ecall_decrypt_process([user_check] uint8_t* ciphertext, uint32_t len_data);
+        public uint32_t ecall_hwe(uint32_t rs_id, [out, size=len_hweResult] char* hweResult, int len_hweResult);
+        public uint32_t ecall_ld(uint32_t rs_id_1, uint32_t rs_id_2, [out, size=len_ldResult] char* ldResult, int len_ldResult);
+        public uint32_t ecall_catt(uint32_t rs_id, [out, size=len_cattResult] char* cattResult, int len_cattResult);
+        public uint32_t ecall_fet(uint32_t rs_id, [out, size=len_fetResult] char* fetResult, int len_fetResult);
+
+    };
+
+    untrusted {
+        void print_string_ocall([in, string] const char *str);
+    };
+};

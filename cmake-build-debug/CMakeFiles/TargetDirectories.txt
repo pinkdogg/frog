@@ -1,0 +1,4 @@
+/home/lighthouse/workspace/sgx/frog/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/lighthouse/workspace/sgx/frog/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/lighthouse/workspace/sgx/frog/cmake-build-debug/CMakeFiles/server.dir
+/home/lighthouse/workspace/sgx/frog/cmake-build-debug/CMakeFiles/client.dir
