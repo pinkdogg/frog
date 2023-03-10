@@ -3,7 +3,7 @@
 
 #include <stdarg.h>
 #include <stdio.h> /* vsnprintf */
-#include <string.h>
+#include <string>
 
 #include "dh_session_protocol.h"
 #include "error_codes.h"
@@ -32,6 +32,8 @@ sgx_measurement_t g_responder_mrsigner = {
 // secret key
 const size_t aes_128bit_key_len = 16;
 uint8_t aes_128bit_key[aes_128bit_key_len] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+
+std::map<std::string, uint32_t> privacyBudgetDB;
 
 /* Function Description:
  *   This is ECALL routine to create ECDH session.
@@ -192,58 +194,65 @@ extern "C" uint32_t message_exchange_response_generator(char* decrypted_data,
     return SUCCESS;
 }
 
-void ecall_encrypt_data(uint8_t* plaintext, uint8_t* ciphertext, uint32_t len_data) {
-    sgx_aes_gcm_data_t *message_aes_gcm_data = (sgx_aes_gcm_data_t *)ciphertext;
-    memset(message_aes_gcm_data->reserved, 'a', sizeof(message_aes_gcm_data->reserved));
-    const uint8_t* p_aad = (const uint8_t*)(" ");
-    uint32_t p_len = 0;
-    sgx_status_t status;
-
-    message_aes_gcm_data->payload_size = len_data;
-    status = sgx_rijndael128GCM_encrypt(
-        (const sgx_aes_gcm_128bit_key_t*)aes_128bit_key, plaintext, len_data,
-                message_aes_gcm_data->payload, 
-                reinterpret_cast<uint8_t*>(&message_aes_gcm_data->reserved), 
-                sizeof(message_aes_gcm_data->reserved),
-                p_aad, p_len, &message_aes_gcm_data->payload_tag);
-
-
-    // printf("len_data = %u\n", len_data);
-    // printf("plaintext:");
-    // for(int i = 0; i < len_data; i++) {
-    //     printf("%x ", plaintext[i]);
-    // }
-    // printf("\n");
-    // printf("ciphertext:");
-    // for(int i = 0; i < len_data; i++) {
-    //     printf("%x ", ciphertext[i]);
-    // }
-    // printf("\n");
+void ecall_add_privacy_budget(const char* strFileNameHash, uint32_t encrypted_privacy_budget) {
+    // use mk/vk to decrypt encrypted_privacy_budgeet
+    std::string hash(strFileNameHash);
+    privacyBudgetDB[hash] = encrypted_privacy_budget;
+    printf("EnclaveBudget:%s---%u\n", strFileNameHash, encrypted_privacy_budget);
 }
 
-void ecall_rencrypt_data(uint8_t* ciphertext, uint32_t len_data) {
-    uint8_t iv[12];
-    memset(iv, 0, sizeof(iv));
-    const uint8_t* p_aad = (const uint8_t*)(" ");
-    uint32_t p_len = 0;
-    sgx_status_t status;
+// void ecall_encrypt_data(uint8_t* plaintext, uint8_t* ciphertext, uint32_t len_data) {
+//     sgx_aes_gcm_data_t *message_aes_gcm_data = (sgx_aes_gcm_data_t *)ciphertext;
+//     memset(message_aes_gcm_data->reserved, 'a', sizeof(message_aes_gcm_data->reserved));
+//     const uint8_t* p_aad = (const uint8_t*)(" ");
+//     uint32_t p_len = 0;
+//     sgx_status_t status;
 
-    uint8_t* plaintext = (uint8_t*)malloc(len_data);
+//     message_aes_gcm_data->payload_size = len_data;
+//     status = sgx_rijndael128GCM_encrypt(
+//         (const sgx_aes_gcm_128bit_key_t*)aes_128bit_key, plaintext, len_data,
+//                 message_aes_gcm_data->payload, 
+//                 reinterpret_cast<uint8_t*>(&message_aes_gcm_data->reserved), 
+//                 sizeof(message_aes_gcm_data->reserved),
+//                 p_aad, p_len, &message_aes_gcm_data->payload_tag);
 
-    // use original key to decrypt the data
-    status = sgx_rijndael128GCM_decrypt(
-        (const sgx_aes_gcm_128bit_key_t*)aes_128bit_key, 
-        ciphertext, len_data, plaintext,
-        iv, sizeof(iv), p_aad, p_len, nullptr);
+
+//     // printf("len_data = %u\n", len_data);
+//     // printf("plaintext:");
+//     // for(int i = 0; i < len_data; i++) {
+//     //     printf("%x ", plaintext[i]);
+//     // }
+//     // printf("\n");
+//     // printf("ciphertext:");
+//     // for(int i = 0; i < len_data; i++) {
+//     //     printf("%x ", ciphertext[i]);
+//     // }
+//     // printf("\n");
+// }
+
+// void ecall_rencrypt_data(uint8_t* ciphertext, uint32_t len_data) {
+//     uint8_t iv[12];
+//     memset(iv, 0, sizeof(iv));
+//     const uint8_t* p_aad = (const uint8_t*)(" ");
+//     uint32_t p_len = 0;
+//     sgx_status_t status;
+
+//     uint8_t* plaintext = (uint8_t*)malloc(len_data);
+
+//     // use original key to decrypt the data
+//     status = sgx_rijndael128GCM_decrypt(
+//         (const sgx_aes_gcm_128bit_key_t*)aes_128bit_key, 
+//         ciphertext, len_data, plaintext,
+//         iv, sizeof(iv), p_aad, p_len, nullptr);
     
-    // generate new key
-    // srand(time(nullptr));
-    // for(int i = 0; i < aes_128bit_key_len; i++) {
-    //     aes_128bit_key[i] = rand() % 255;
-    // }
+//     // generate new key
+//     // srand(time(nullptr));
+//     // for(int i = 0; i < aes_128bit_key_len; i++) {
+//     //     aes_128bit_key[i] = rand() % 255;
+//     // }
 
-    // encrypt the data
-    status = sgx_rijndael128GCM_encrypt(
-        (const sgx_aes_gcm_128bit_key_t*)aes_128bit_key, plaintext, len_data,
-                ciphertext, iv, sizeof(iv), p_aad, p_len, nullptr);
-}
+//     // encrypt the data
+//     status = sgx_rijndael128GCM_encrypt(
+//         (const sgx_aes_gcm_128bit_key_t*)aes_128bit_key, plaintext, len_data,
+//                 ciphertext, iv, sizeof(iv), p_aad, p_len, nullptr);
+// }

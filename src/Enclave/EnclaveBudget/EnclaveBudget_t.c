@@ -39,16 +39,10 @@ typedef struct ms_ecall_close_session_t {
 	uint32_t ms_retval;
 } ms_ecall_close_session_t;
 
-typedef struct ms_ecall_encrypt_data_t {
-	uint8_t* ms_plaintext;
-	uint8_t* ms_ciphertext;
-	uint32_t ms_len_data;
-} ms_ecall_encrypt_data_t;
-
-typedef struct ms_ecall_rencrypt_data_t {
-	uint8_t* ms_ciphertext;
-	uint32_t ms_len_data;
-} ms_ecall_rencrypt_data_t;
+typedef struct ms_ecall_add_privacy_budget_t {
+	const char* ms_strFileNameHash;
+	uint32_t ms_encrypted_privacy_budget;
+} ms_ecall_add_privacy_budget_t;
 
 typedef struct ms_print_string_ocall_t {
 	const char* ms_str;
@@ -160,46 +154,23 @@ err:
 	return status;
 }
 
-static sgx_status_t SGX_CDECL sgx_ecall_encrypt_data(void* pms)
+static sgx_status_t SGX_CDECL sgx_ecall_add_privacy_budget(void* pms)
 {
-	CHECK_REF_POINTER(pms, sizeof(ms_ecall_encrypt_data_t));
+	CHECK_REF_POINTER(pms, sizeof(ms_ecall_add_privacy_budget_t));
 	//
 	// fence after pointer checks
 	//
 	sgx_lfence();
-	ms_ecall_encrypt_data_t* ms = SGX_CAST(ms_ecall_encrypt_data_t*, pms);
-	ms_ecall_encrypt_data_t __in_ms;
-	if (memcpy_s(&__in_ms, sizeof(ms_ecall_encrypt_data_t), ms, sizeof(ms_ecall_encrypt_data_t))) {
+	ms_ecall_add_privacy_budget_t* ms = SGX_CAST(ms_ecall_add_privacy_budget_t*, pms);
+	ms_ecall_add_privacy_budget_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_ecall_add_privacy_budget_t), ms, sizeof(ms_ecall_add_privacy_budget_t))) {
 		return SGX_ERROR_UNEXPECTED;
 	}
 	sgx_status_t status = SGX_SUCCESS;
-	uint8_t* _tmp_plaintext = __in_ms.ms_plaintext;
-	uint8_t* _tmp_ciphertext = __in_ms.ms_ciphertext;
+	const char* _tmp_strFileNameHash = __in_ms.ms_strFileNameHash;
 
 
-	ecall_encrypt_data(_tmp_plaintext, _tmp_ciphertext, __in_ms.ms_len_data);
-
-
-	return status;
-}
-
-static sgx_status_t SGX_CDECL sgx_ecall_rencrypt_data(void* pms)
-{
-	CHECK_REF_POINTER(pms, sizeof(ms_ecall_rencrypt_data_t));
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-	ms_ecall_rencrypt_data_t* ms = SGX_CAST(ms_ecall_rencrypt_data_t*, pms);
-	ms_ecall_rencrypt_data_t __in_ms;
-	if (memcpy_s(&__in_ms, sizeof(ms_ecall_rencrypt_data_t), ms, sizeof(ms_ecall_rencrypt_data_t))) {
-		return SGX_ERROR_UNEXPECTED;
-	}
-	sgx_status_t status = SGX_SUCCESS;
-	uint8_t* _tmp_ciphertext = __in_ms.ms_ciphertext;
-
-
-	ecall_rencrypt_data(_tmp_ciphertext, __in_ms.ms_len_data);
+	ecall_add_privacy_budget((const char*)_tmp_strFileNameHash, __in_ms.ms_encrypted_privacy_budget);
 
 
 	return status;
@@ -207,29 +178,28 @@ static sgx_status_t SGX_CDECL sgx_ecall_rencrypt_data(void* pms)
 
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[5];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[4];
 } g_ecall_table = {
-	5,
+	4,
 	{
 		{(void*)(uintptr_t)sgx_ecall_create_session, 0, 0},
 		{(void*)(uintptr_t)sgx_ecall_transfer_secret_key, 0, 0},
 		{(void*)(uintptr_t)sgx_ecall_close_session, 0, 0},
-		{(void*)(uintptr_t)sgx_ecall_encrypt_data, 0, 0},
-		{(void*)(uintptr_t)sgx_ecall_rencrypt_data, 0, 0},
+		{(void*)(uintptr_t)sgx_ecall_add_privacy_budget, 0, 0},
 	}
 };
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[5][5];
+	uint8_t entry_table[5][4];
 } g_dyn_entry_table = {
 	5,
 	{
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, },
+		{0, 0, 0, 0, },
+		{0, 0, 0, 0, },
+		{0, 0, 0, 0, },
+		{0, 0, 0, 0, },
 	}
 };
 

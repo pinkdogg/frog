@@ -57,4 +57,5 @@ add_executable(server
 target_link_libraries(server OpenSSL::SSL Boost::thread)
 target_link_libraries(server sgx_urts_sim sgx_uae_service_sim sgx_usgxssl)
 
-
+add_executable(compress_vcf
+                src/app/compress_vcf.cc)

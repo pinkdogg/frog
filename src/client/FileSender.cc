@@ -12,7 +12,7 @@ FileSender::~FileSender() {
 
 }
 
-bool FileSender::SendFile(const std::string& filePath) {
+bool FileSender::SendFile(const std::string& filePath, uint32_t privacy_budget, const uint8_t encryption_key[32]) {
   std::cout << "client:start uploading file:" << filePath << std::endl;
   DataMsg_t* msgBuffer;
   std::fstream fileStream;
@@ -24,14 +24,21 @@ bool FileSender::SendFile(const std::string& filePath) {
     // send error message to server, so that server can terminate the connection normally
     return false;
   }
-  // send fileName hash
-  unsigned char hash[32];
+
+  //todo
+  // enclave_budget mk, vk encrypt privacy_budget
+  // enclave_compute mk, vk encrypt encryption key
+  
+  // send fileName hash, privacy_budget, encryption key
+  msgBuffer = (DataMsg_t*)malloc(sizeof(DataMsg_t)+sizeof(FileMetaData));
+  FileMetaData* metaData = (FileMetaData*)msgBuffer->data;
   unsigned int hashSize;
-  cryptoPrimitive_.GenerateHash((uint8_t*)fileName.c_str(), fileName.size(), hash, &hashSize);
-  msgBuffer = (DataMsg_t*)malloc(sizeof(DataMsg_t)+hashSize);
-  msgBuffer->header.dataMsgType = kFileNameHash;
-  memcpy(msgBuffer->data, hash, hashSize);
-  sslConnection_->SendData((uint8_t*)msgBuffer, sizeof(DataMsg_t)+hashSize);
+  cryptoPrimitive_.GenerateHash((uint8_t*)fileName.c_str(), fileName.size(), metaData->hash, &hashSize);
+  memcpy(&metaData->encrypted_privacy_budget, &privacy_budget, sizeof(metaData->encrypted_privacy_budget));
+  memcpy(&metaData->encrypted_file_encryption_key, encryption_key, sizeof(metaData->encrypted_file_encryption_key));
+  msgBuffer->header.dataMsgType = kFileMetaData;
+  sslConnection_->SendData((uint8_t*)msgBuffer, sizeof(DataMsg_t)+sizeof(FileMetaData));
+
   free(msgBuffer);
 
   // send file body
@@ -43,7 +50,7 @@ bool FileSender::SendFile(const std::string& filePath) {
     len = fileStream.gcount();
     if(len > 0) {
       msgBuffer->header.dataMsgType = kFileBody;
-      cryptoPrimitive_.EncryptWithKey(readBuffer, len, msgBuffer->data, kAES_256_GCM_KEY);
+      cryptoPrimitive_.EncryptWithKey(readBuffer, len, msgBuffer->data, encryption_key);
       sslConnection_->SendData((uint8_t*)msgBuffer, sizeof(DataMsg_t)+len);
     } else {
       break;

@@ -25,49 +25,48 @@ GWASExecutor::GWASExecutor(uint8_t* paras, uint32_t parasLen) {
 
 GWASExecutor::~GWASExecutor() {}
 
-bool GWASExecutor::execute(uint8_t** result, uint32_t& resultSize) {
+void GWASExecutor::execute(uint8_t** result, uint32_t& resultSize) {
   sgx_status_t status;
   uint32_t ret_status;
 
-  char ret_ld, ret_hwe, ret_catt, ret_fet;
+  int ret_ld, ret_hwe, ret_catt, ret_fet;
 
-  status = ecall_hwe(compute_enclave_id, &ret_status, hwe_para, &ret_hwe, 1);
+  status = ecall_hwe(compute_enclave_id, &ret_status, hwe_para, &ret_hwe);
   if(status != SGX_SUCCESS || ret_status != 0) {
       printf("failed to calculate HWE.\n");
-      return false;
+      ret_hwe = -1;
   } 
-  printf("HWE Result = %c\n", ret_hwe);
+  printf("HWE Result = %d\n", ret_hwe);
 
-  status = ecall_ld(compute_enclave_id, &ret_status, ld_para_1, ld_para_2, &ret_ld, 1);
+  status = ecall_ld(compute_enclave_id, &ret_status, ld_para_1, ld_para_2, &ret_ld);
   if(status != SGX_SUCCESS || ret_status != 0) {
       printf("failed to calculate LD.\n");
-      return false;
+      ret_ld = -1;
   } 
-  printf("LD Result = %c\n", ret_ld);
+  printf("LD Result = %d\n", ret_ld);
 
-  status = ecall_catt(compute_enclave_id, &ret_status, catt_para, &ret_catt, 1);
+  status = ecall_catt(compute_enclave_id, &ret_status, catt_para, &ret_catt);
   if(status != SGX_SUCCESS || ret_status != 0) {
       printf("failed to calculate CATT.\n");
-      return false;
+      ret_catt = -1;
   } 
-  printf("CATT Result = %c\n", ret_catt);
+  printf("CATT Result = %d\n", ret_catt);
 
-  status = ecall_fet(compute_enclave_id, &ret_status, fet_para, &ret_fet, 1);
+  status = ecall_fet(compute_enclave_id, &ret_status, fet_para, &ret_fet);
   if(status != SGX_SUCCESS || ret_status != 0) {
       printf("failed to calculate FET.\n");
-      return false;
+      ret_fet = -1;
   } 
-  printf("FET Result = %c\n", ret_fet);
+  printf("FET Result = %d\n", ret_fet);
 
   Json resultJson = Json::object{
-      {"LD", ret_ld - '0' },
-      {"HWE", ret_hwe - '0'},
-      {"CATT", ret_catt - '0'},
-      {"FET", ret_fet - '0'}
+      {"LD", ret_ld },
+      {"HWE", ret_hwe},
+      {"CATT", ret_catt},
+      {"FET", ret_fet}
   };
   std::string resultStr = resultJson.dump();
   resultSize = resultStr.size();
   *result = (uint8_t*)malloc(resultSize);
   memcpy(*result, resultStr.c_str(), resultSize);
-  return true;
 }

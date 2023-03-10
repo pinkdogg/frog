@@ -56,6 +56,7 @@ typedef struct ms_end_session_t {
 } ms_end_session_t;
 
 typedef struct ms_ecall_decrypt_process_t {
+	const char* ms_strFileNameHash;
 	uint8_t* ms_ciphertext;
 	uint32_t ms_len_data;
 } ms_ecall_decrypt_process_t;
@@ -63,31 +64,32 @@ typedef struct ms_ecall_decrypt_process_t {
 typedef struct ms_ecall_hwe_t {
 	uint32_t ms_retval;
 	uint32_t ms_rs_id;
-	char* ms_hweResult;
-	int ms_len_hweResult;
+	int* ms_hweResult;
 } ms_ecall_hwe_t;
 
 typedef struct ms_ecall_ld_t {
 	uint32_t ms_retval;
 	uint32_t ms_rs_id_1;
 	uint32_t ms_rs_id_2;
-	char* ms_ldResult;
-	int ms_len_ldResult;
+	int* ms_ldResult;
 } ms_ecall_ld_t;
 
 typedef struct ms_ecall_catt_t {
 	uint32_t ms_retval;
 	uint32_t ms_rs_id;
-	char* ms_cattResult;
-	int ms_len_cattResult;
+	int* ms_cattResult;
 } ms_ecall_catt_t;
 
 typedef struct ms_ecall_fet_t {
 	uint32_t ms_retval;
 	uint32_t ms_rs_id;
-	char* ms_fetResult;
-	int ms_len_fetResult;
+	int* ms_fetResult;
 } ms_ecall_fet_t;
+
+typedef struct ms_ecall_add_encryption_key_t {
+	const char* ms_strFileNameHash;
+	uint8_t* ms_encrypted_encryption_key;
+} ms_ecall_add_encryption_key_t;
 
 typedef struct ms_print_string_ocall_t {
 	const char* ms_str;
@@ -393,10 +395,11 @@ static sgx_status_t SGX_CDECL sgx_ecall_decrypt_process(void* pms)
 		return SGX_ERROR_UNEXPECTED;
 	}
 	sgx_status_t status = SGX_SUCCESS;
+	const char* _tmp_strFileNameHash = __in_ms.ms_strFileNameHash;
 	uint8_t* _tmp_ciphertext = __in_ms.ms_ciphertext;
 
 
-	ecall_decrypt_process(_tmp_ciphertext, __in_ms.ms_len_data);
+	ecall_decrypt_process((const char*)_tmp_strFileNameHash, _tmp_ciphertext, __in_ms.ms_len_data);
 
 
 	return status;
@@ -415,10 +418,9 @@ static sgx_status_t SGX_CDECL sgx_ecall_hwe(void* pms)
 		return SGX_ERROR_UNEXPECTED;
 	}
 	sgx_status_t status = SGX_SUCCESS;
-	char* _tmp_hweResult = __in_ms.ms_hweResult;
-	int _tmp_len_hweResult = __in_ms.ms_len_hweResult;
-	size_t _len_hweResult = _tmp_len_hweResult;
-	char* _in_hweResult = NULL;
+	int* _tmp_hweResult = __in_ms.ms_hweResult;
+	size_t _len_hweResult = sizeof(int);
+	int* _in_hweResult = NULL;
 	uint32_t _in_retval;
 
 	CHECK_UNIQUE_POINTER(_tmp_hweResult, _len_hweResult);
@@ -434,14 +436,14 @@ static sgx_status_t SGX_CDECL sgx_ecall_hwe(void* pms)
 			status = SGX_ERROR_INVALID_PARAMETER;
 			goto err;
 		}
-		if ((_in_hweResult = (char*)malloc(_len_hweResult)) == NULL) {
+		if ((_in_hweResult = (int*)malloc(_len_hweResult)) == NULL) {
 			status = SGX_ERROR_OUT_OF_MEMORY;
 			goto err;
 		}
 
 		memset((void*)_in_hweResult, 0, _len_hweResult);
 	}
-	_in_retval = ecall_hwe(__in_ms.ms_rs_id, _in_hweResult, _tmp_len_hweResult);
+	_in_retval = ecall_hwe(__in_ms.ms_rs_id, _in_hweResult);
 	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
 		status = SGX_ERROR_UNEXPECTED;
 		goto err;
@@ -471,10 +473,9 @@ static sgx_status_t SGX_CDECL sgx_ecall_ld(void* pms)
 		return SGX_ERROR_UNEXPECTED;
 	}
 	sgx_status_t status = SGX_SUCCESS;
-	char* _tmp_ldResult = __in_ms.ms_ldResult;
-	int _tmp_len_ldResult = __in_ms.ms_len_ldResult;
-	size_t _len_ldResult = _tmp_len_ldResult;
-	char* _in_ldResult = NULL;
+	int* _tmp_ldResult = __in_ms.ms_ldResult;
+	size_t _len_ldResult = sizeof(int);
+	int* _in_ldResult = NULL;
 	uint32_t _in_retval;
 
 	CHECK_UNIQUE_POINTER(_tmp_ldResult, _len_ldResult);
@@ -490,14 +491,14 @@ static sgx_status_t SGX_CDECL sgx_ecall_ld(void* pms)
 			status = SGX_ERROR_INVALID_PARAMETER;
 			goto err;
 		}
-		if ((_in_ldResult = (char*)malloc(_len_ldResult)) == NULL) {
+		if ((_in_ldResult = (int*)malloc(_len_ldResult)) == NULL) {
 			status = SGX_ERROR_OUT_OF_MEMORY;
 			goto err;
 		}
 
 		memset((void*)_in_ldResult, 0, _len_ldResult);
 	}
-	_in_retval = ecall_ld(__in_ms.ms_rs_id_1, __in_ms.ms_rs_id_2, _in_ldResult, _tmp_len_ldResult);
+	_in_retval = ecall_ld(__in_ms.ms_rs_id_1, __in_ms.ms_rs_id_2, _in_ldResult);
 	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
 		status = SGX_ERROR_UNEXPECTED;
 		goto err;
@@ -527,10 +528,9 @@ static sgx_status_t SGX_CDECL sgx_ecall_catt(void* pms)
 		return SGX_ERROR_UNEXPECTED;
 	}
 	sgx_status_t status = SGX_SUCCESS;
-	char* _tmp_cattResult = __in_ms.ms_cattResult;
-	int _tmp_len_cattResult = __in_ms.ms_len_cattResult;
-	size_t _len_cattResult = _tmp_len_cattResult;
-	char* _in_cattResult = NULL;
+	int* _tmp_cattResult = __in_ms.ms_cattResult;
+	size_t _len_cattResult = sizeof(int);
+	int* _in_cattResult = NULL;
 	uint32_t _in_retval;
 
 	CHECK_UNIQUE_POINTER(_tmp_cattResult, _len_cattResult);
@@ -546,14 +546,14 @@ static sgx_status_t SGX_CDECL sgx_ecall_catt(void* pms)
 			status = SGX_ERROR_INVALID_PARAMETER;
 			goto err;
 		}
-		if ((_in_cattResult = (char*)malloc(_len_cattResult)) == NULL) {
+		if ((_in_cattResult = (int*)malloc(_len_cattResult)) == NULL) {
 			status = SGX_ERROR_OUT_OF_MEMORY;
 			goto err;
 		}
 
 		memset((void*)_in_cattResult, 0, _len_cattResult);
 	}
-	_in_retval = ecall_catt(__in_ms.ms_rs_id, _in_cattResult, _tmp_len_cattResult);
+	_in_retval = ecall_catt(__in_ms.ms_rs_id, _in_cattResult);
 	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
 		status = SGX_ERROR_UNEXPECTED;
 		goto err;
@@ -583,10 +583,9 @@ static sgx_status_t SGX_CDECL sgx_ecall_fet(void* pms)
 		return SGX_ERROR_UNEXPECTED;
 	}
 	sgx_status_t status = SGX_SUCCESS;
-	char* _tmp_fetResult = __in_ms.ms_fetResult;
-	int _tmp_len_fetResult = __in_ms.ms_len_fetResult;
-	size_t _len_fetResult = _tmp_len_fetResult;
-	char* _in_fetResult = NULL;
+	int* _tmp_fetResult = __in_ms.ms_fetResult;
+	size_t _len_fetResult = sizeof(int);
+	int* _in_fetResult = NULL;
 	uint32_t _in_retval;
 
 	CHECK_UNIQUE_POINTER(_tmp_fetResult, _len_fetResult);
@@ -602,14 +601,14 @@ static sgx_status_t SGX_CDECL sgx_ecall_fet(void* pms)
 			status = SGX_ERROR_INVALID_PARAMETER;
 			goto err;
 		}
-		if ((_in_fetResult = (char*)malloc(_len_fetResult)) == NULL) {
+		if ((_in_fetResult = (int*)malloc(_len_fetResult)) == NULL) {
 			status = SGX_ERROR_OUT_OF_MEMORY;
 			goto err;
 		}
 
 		memset((void*)_in_fetResult, 0, _len_fetResult);
 	}
-	_in_retval = ecall_fet(__in_ms.ms_rs_id, _in_fetResult, _tmp_len_fetResult);
+	_in_retval = ecall_fet(__in_ms.ms_rs_id, _in_fetResult);
 	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
 		status = SGX_ERROR_UNEXPECTED;
 		goto err;
@@ -626,11 +625,34 @@ err:
 	return status;
 }
 
+static sgx_status_t SGX_CDECL sgx_ecall_add_encryption_key(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_ecall_add_encryption_key_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_ecall_add_encryption_key_t* ms = SGX_CAST(ms_ecall_add_encryption_key_t*, pms);
+	ms_ecall_add_encryption_key_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_ecall_add_encryption_key_t), ms, sizeof(ms_ecall_add_encryption_key_t))) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+	sgx_status_t status = SGX_SUCCESS;
+	const char* _tmp_strFileNameHash = __in_ms.ms_strFileNameHash;
+	uint8_t* _tmp_encrypted_encryption_key = __in_ms.ms_encrypted_encryption_key;
+
+
+	ecall_add_encryption_key((const char*)_tmp_strFileNameHash, _tmp_encrypted_encryption_key);
+
+
+	return status;
+}
+
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[9];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[10];
 } g_ecall_table = {
-	9,
+	10,
 	{
 		{(void*)(uintptr_t)sgx_session_request, 0, 0},
 		{(void*)(uintptr_t)sgx_exchange_report, 0, 0},
@@ -641,25 +663,26 @@ SGX_EXTERNC const struct {
 		{(void*)(uintptr_t)sgx_ecall_ld, 0, 0},
 		{(void*)(uintptr_t)sgx_ecall_catt, 0, 0},
 		{(void*)(uintptr_t)sgx_ecall_fet, 0, 0},
+		{(void*)(uintptr_t)sgx_ecall_add_encryption_key, 0, 0},
 	}
 };
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[10][9];
+	uint8_t entry_table[10][10];
 } g_dyn_entry_table = {
 	10,
 	{
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 	}
 };
 

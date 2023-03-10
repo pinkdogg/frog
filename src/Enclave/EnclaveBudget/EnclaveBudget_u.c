@@ -13,16 +13,10 @@ typedef struct ms_ecall_close_session_t {
 	uint32_t ms_retval;
 } ms_ecall_close_session_t;
 
-typedef struct ms_ecall_encrypt_data_t {
-	uint8_t* ms_plaintext;
-	uint8_t* ms_ciphertext;
-	uint32_t ms_len_data;
-} ms_ecall_encrypt_data_t;
-
-typedef struct ms_ecall_rencrypt_data_t {
-	uint8_t* ms_ciphertext;
-	uint32_t ms_len_data;
-} ms_ecall_rencrypt_data_t;
+typedef struct ms_ecall_add_privacy_budget_t {
+	const char* ms_strFileNameHash;
+	uint32_t ms_encrypted_privacy_budget;
+} ms_ecall_add_privacy_budget_t;
 
 typedef struct ms_print_string_ocall_t {
 	const char* ms_str;
@@ -136,24 +130,13 @@ sgx_status_t ecall_close_session(sgx_enclave_id_t eid, uint32_t* retval)
 	return status;
 }
 
-sgx_status_t ecall_encrypt_data(sgx_enclave_id_t eid, uint8_t* plaintext, uint8_t* ciphertext, uint32_t len_data)
+sgx_status_t ecall_add_privacy_budget(sgx_enclave_id_t eid, const char* strFileNameHash, uint32_t encrypted_privacy_budget)
 {
 	sgx_status_t status;
-	ms_ecall_encrypt_data_t ms;
-	ms.ms_plaintext = plaintext;
-	ms.ms_ciphertext = ciphertext;
-	ms.ms_len_data = len_data;
+	ms_ecall_add_privacy_budget_t ms;
+	ms.ms_strFileNameHash = strFileNameHash;
+	ms.ms_encrypted_privacy_budget = encrypted_privacy_budget;
 	status = sgx_ecall(eid, 3, &ocall_table_EnclaveBudget, &ms);
-	return status;
-}
-
-sgx_status_t ecall_rencrypt_data(sgx_enclave_id_t eid, uint8_t* ciphertext, uint32_t len_data)
-{
-	sgx_status_t status;
-	ms_ecall_rencrypt_data_t ms;
-	ms.ms_ciphertext = ciphertext;
-	ms.ms_len_data = len_data;
-	status = sgx_ecall(eid, 4, &ocall_table_EnclaveBudget, &ms);
 	return status;
 }
 

@@ -26,9 +26,6 @@ void ServerOptThread::Run() {
     }
     switch(orderType) {
       case kUPLOAD:{
-        //todo
-        // deliver privacy budget to budget enclave
-        // deliver decryption key to compute enclave
         if(!fileReceiver_.ReceiveFile()) {
           fprintf(stderr, "ServerOptThread:receive file error.\n");
           run = false;
@@ -51,10 +48,9 @@ void ServerOptThread::Run() {
             GWASExecutor gwasExecutor(paras, parasLen);
             uint8_t* result;
             uint32_t resultSize;
-            if(!gwasExecutor.execute(&result, resultSize)) {
-              fprintf(stderr, "ServerOptThread:execute operation error.\n");
-              run = false;
-            }
+            
+            gwasExecutor.execute(&result, resultSize);
+
             if(!orderReceiver_.SendResult(kGWASResponse, result, resultSize)) {
               fprintf(stderr, "client:cannot send result.\n");
               run = false;

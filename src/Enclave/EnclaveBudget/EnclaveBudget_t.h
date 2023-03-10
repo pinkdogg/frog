@@ -21,8 +21,7 @@ extern "C" {
 uint32_t ecall_create_session(void);
 uint32_t ecall_transfer_secret_key(void);
 uint32_t ecall_close_session(void);
-void ecall_encrypt_data(uint8_t* plaintext, uint8_t* ciphertext, uint32_t len_data);
-void ecall_rencrypt_data(uint8_t* ciphertext, uint32_t len_data);
+void ecall_add_privacy_budget(const char* strFileNameHash, uint32_t encrypted_privacy_budget);
 
 sgx_status_t SGX_CDECL print_string_ocall(const char* str);
 sgx_status_t SGX_CDECL session_request_ocall(uint32_t* retval, sgx_dh_msg1_t* dh_msg1, uint32_t* session_id);

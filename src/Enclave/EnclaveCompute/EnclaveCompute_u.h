@@ -65,11 +65,12 @@ sgx_status_t session_request(sgx_enclave_id_t eid, uint32_t* retval, sgx_dh_msg1
 sgx_status_t exchange_report(sgx_enclave_id_t eid, uint32_t* retval, sgx_dh_msg2_t* dh_msg2, sgx_dh_msg3_t* dh_msg3, uint32_t session_id);
 sgx_status_t generate_response(sgx_enclave_id_t eid, uint32_t* retval, secure_message_t* req_message, size_t req_message_size, size_t max_payload_size, secure_message_t* resp_message, size_t resp_message_size, uint32_t session_id);
 sgx_status_t end_session(sgx_enclave_id_t eid, uint32_t* retval, uint32_t session_id);
-sgx_status_t ecall_decrypt_process(sgx_enclave_id_t eid, uint8_t* ciphertext, uint32_t len_data);
-sgx_status_t ecall_hwe(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, char* hweResult, int len_hweResult);
-sgx_status_t ecall_ld(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id_1, uint32_t rs_id_2, char* ldResult, int len_ldResult);
-sgx_status_t ecall_catt(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, char* cattResult, int len_cattResult);
-sgx_status_t ecall_fet(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, char* fetResult, int len_fetResult);
+sgx_status_t ecall_decrypt_process(sgx_enclave_id_t eid, const char* strFileNameHash, uint8_t* ciphertext, uint32_t len_data);
+sgx_status_t ecall_hwe(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, int* hweResult);
+sgx_status_t ecall_ld(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id_1, uint32_t rs_id_2, int* ldResult);
+sgx_status_t ecall_catt(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, int* cattResult);
+sgx_status_t ecall_fet(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, int* fetResult);
+sgx_status_t ecall_add_encryption_key(sgx_enclave_id_t eid, const char* strFileNameHash, uint8_t encrypted_encryption_key[32]);
 
 #ifdef __cplusplus
 }

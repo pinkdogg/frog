@@ -1,7 +1,7 @@
 #include <iostream>
 #include "SSLConnection.h"
 #include "ServerOptThread.h"
-#include <boost/thread/thread.hpp>
+#include "CryptoPrimitive.h"
 #include <map>
 #include <filesystem>
 #include <fstream>
@@ -11,10 +11,11 @@
 #include "EnclaveBudget_u.h"
 #include "EnclaveCompute_u.h"
 
-#define ENCLAVE_BUDGET_PATH "../lib/libenclave_budget.signed.so"
-#define ENCLAVE_COMPUTE_PATH "../lib/libenclave_compute.signed.so"
+#define ENCLAVE_BUDGET_PATH "../src/Enclave/EnclaveBudget/libenclave_budget.signed.so"
+#define ENCLAVE_COMPUTE_PATH "../src/Enclave/EnclaveCompute/libenclave_compute.signed.so"
 
 sgx_enclave_id_t budget_enclave_id = 0, compute_enclave_id = 0;
+CryptoPrimitive cryptoPrimitive(kSHA256, kAES_256_GCM);
 
 void print_string_ocall(const char *str) {
     printf("%s", str);
@@ -39,15 +40,34 @@ void initialize_enclave() {
 
   uint8_t* ciphertext = (uint8_t*)malloc(kREADSIZE);
   uint32_t len;
+
+  unsigned char hash[32];
+  unsigned int hashSize;
+
   for(auto const& dir_entry : std::filesystem::directory_iterator(gwas)) {
     std::cout << dir_entry.path() << std::endl;
     std::ifstream file(dir_entry.path(), std::ios::in | std::ios::binary);
+
+    std::string fileName;
+    size_t i = (dir_entry.path()).string().rfind('/');
+    if(i != std::string::npos) {
+      fileName = dir_entry.path().string().substr(i+1);
+    } else {
+      fileName = dir_entry.path().string();
+    }
+
+    cryptoPrimitive.GenerateHash((uint8_t*)fileName.c_str(), fileName.size(), hash, &hashSize);
+    std::stringstream ss;
+    for(int i = 0; i < 32; i++) {
+      ss << std::setfill('0') << std::setw(2) <<std::hex << (unsigned int)hash[i];
+    }
+    std::string strFileNameHash = ss.str();
 
     while(true) {
       file.read((char*)ciphertext, kREADSIZE);
       len = file.gcount();
       if(len > 0) {
-        ecall_decrypt_process(compute_enclave_id, (uint8_t*)ciphertext, len);
+        ecall_decrypt_process(compute_enclave_id, strFileNameHash.c_str(), (uint8_t*)ciphertext, len);
       } else {
         break;
       }

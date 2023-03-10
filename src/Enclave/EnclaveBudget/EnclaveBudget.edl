@@ -7,9 +7,7 @@ enclave {
         public uint32_t ecall_create_session();
         public uint32_t ecall_transfer_secret_key();
         public uint32_t ecall_close_session();
-        public void ecall_encrypt_data([user_check] uint8_t* plaintext, [user_check]uint8_t* ciphertext, uint32_t len_data);
-        public void ecall_rencrypt_data([user_check] uint8_t* ciphertext, uint32_t len_data);
-
+        public void ecall_add_privacy_budget([user_check]const char* strFileNameHash, uint32_t encrypted_privacy_budget);
     };
 
     untrusted {

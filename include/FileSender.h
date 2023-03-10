@@ -7,7 +7,7 @@
 class FileSender {
  public:
   explicit FileSender(std::shared_ptr<SSLConnection> sslConnection);
-  bool SendFile(const std::string& filePath);
+  bool SendFile(const std::string& filePath, uint32_t encrypted_privacy_budget, const uint8_t encrypted_file_encryption_key[32]);
   ~FileSender();
  private:
   std::string getFileName(const std::string& filePath);

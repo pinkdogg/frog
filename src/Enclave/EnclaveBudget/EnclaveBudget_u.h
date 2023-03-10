@@ -43,8 +43,7 @@ uint32_t SGX_UBRIDGE(SGX_NOCONVENTION, end_session_ocall, (uint32_t session_id))
 sgx_status_t ecall_create_session(sgx_enclave_id_t eid, uint32_t* retval);
 sgx_status_t ecall_transfer_secret_key(sgx_enclave_id_t eid, uint32_t* retval);
 sgx_status_t ecall_close_session(sgx_enclave_id_t eid, uint32_t* retval);
-sgx_status_t ecall_encrypt_data(sgx_enclave_id_t eid, uint8_t* plaintext, uint8_t* ciphertext, uint32_t len_data);
-sgx_status_t ecall_rencrypt_data(sgx_enclave_id_t eid, uint8_t* ciphertext, uint32_t len_data);
+sgx_status_t ecall_add_privacy_budget(sgx_enclave_id_t eid, const char* strFileNameHash, uint32_t encrypted_privacy_budget);
 
 #ifdef __cplusplus
 }

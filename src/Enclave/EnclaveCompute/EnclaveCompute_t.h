@@ -23,11 +23,12 @@ uint32_t session_request(sgx_dh_msg1_t* dh_msg1, uint32_t* session_id);
 uint32_t exchange_report(sgx_dh_msg2_t* dh_msg2, sgx_dh_msg3_t* dh_msg3, uint32_t session_id);
 uint32_t generate_response(secure_message_t* req_message, size_t req_message_size, size_t max_payload_size, secure_message_t* resp_message, size_t resp_message_size, uint32_t session_id);
 uint32_t end_session(uint32_t session_id);
-void ecall_decrypt_process(uint8_t* ciphertext, uint32_t len_data);
-uint32_t ecall_hwe(uint32_t rs_id, char* hweResult, int len_hweResult);
-uint32_t ecall_ld(uint32_t rs_id_1, uint32_t rs_id_2, char* ldResult, int len_ldResult);
-uint32_t ecall_catt(uint32_t rs_id, char* cattResult, int len_cattResult);
-uint32_t ecall_fet(uint32_t rs_id, char* fetResult, int len_fetResult);
+void ecall_decrypt_process(const char* strFileNameHash, uint8_t* ciphertext, uint32_t len_data);
+uint32_t ecall_hwe(uint32_t rs_id, int* hweResult);
+uint32_t ecall_ld(uint32_t rs_id_1, uint32_t rs_id_2, int* ldResult);
+uint32_t ecall_catt(uint32_t rs_id, int* cattResult);
+uint32_t ecall_fet(uint32_t rs_id, int* fetResult);
+void ecall_add_encryption_key(const char* strFileNameHash, uint8_t encrypted_encryption_key[32]);
 
 sgx_status_t SGX_CDECL print_string_ocall(const char* str);
 sgx_status_t SGX_CDECL sgx_oc_cpuidex(int cpuinfo[4], int leaf, int subleaf);

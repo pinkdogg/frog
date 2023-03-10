@@ -30,6 +30,7 @@ typedef struct ms_end_session_t {
 } ms_end_session_t;
 
 typedef struct ms_ecall_decrypt_process_t {
+	const char* ms_strFileNameHash;
 	uint8_t* ms_ciphertext;
 	uint32_t ms_len_data;
 } ms_ecall_decrypt_process_t;
@@ -37,31 +38,32 @@ typedef struct ms_ecall_decrypt_process_t {
 typedef struct ms_ecall_hwe_t {
 	uint32_t ms_retval;
 	uint32_t ms_rs_id;
-	char* ms_hweResult;
-	int ms_len_hweResult;
+	int* ms_hweResult;
 } ms_ecall_hwe_t;
 
 typedef struct ms_ecall_ld_t {
 	uint32_t ms_retval;
 	uint32_t ms_rs_id_1;
 	uint32_t ms_rs_id_2;
-	char* ms_ldResult;
-	int ms_len_ldResult;
+	int* ms_ldResult;
 } ms_ecall_ld_t;
 
 typedef struct ms_ecall_catt_t {
 	uint32_t ms_retval;
 	uint32_t ms_rs_id;
-	char* ms_cattResult;
-	int ms_len_cattResult;
+	int* ms_cattResult;
 } ms_ecall_catt_t;
 
 typedef struct ms_ecall_fet_t {
 	uint32_t ms_retval;
 	uint32_t ms_rs_id;
-	char* ms_fetResult;
-	int ms_len_fetResult;
+	int* ms_fetResult;
 } ms_ecall_fet_t;
+
+typedef struct ms_ecall_add_encryption_key_t {
+	const char* ms_strFileNameHash;
+	uint8_t* ms_encrypted_encryption_key;
+} ms_ecall_add_encryption_key_t;
 
 typedef struct ms_print_string_ocall_t {
 	const char* ms_str;
@@ -262,62 +264,69 @@ sgx_status_t end_session(sgx_enclave_id_t eid, uint32_t* retval, uint32_t sessio
 	return status;
 }
 
-sgx_status_t ecall_decrypt_process(sgx_enclave_id_t eid, uint8_t* ciphertext, uint32_t len_data)
+sgx_status_t ecall_decrypt_process(sgx_enclave_id_t eid, const char* strFileNameHash, uint8_t* ciphertext, uint32_t len_data)
 {
 	sgx_status_t status;
 	ms_ecall_decrypt_process_t ms;
+	ms.ms_strFileNameHash = strFileNameHash;
 	ms.ms_ciphertext = ciphertext;
 	ms.ms_len_data = len_data;
 	status = sgx_ecall(eid, 4, &ocall_table_EnclaveCompute, &ms);
 	return status;
 }
 
-sgx_status_t ecall_hwe(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, char* hweResult, int len_hweResult)
+sgx_status_t ecall_hwe(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, int* hweResult)
 {
 	sgx_status_t status;
 	ms_ecall_hwe_t ms;
 	ms.ms_rs_id = rs_id;
 	ms.ms_hweResult = hweResult;
-	ms.ms_len_hweResult = len_hweResult;
 	status = sgx_ecall(eid, 5, &ocall_table_EnclaveCompute, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
 
-sgx_status_t ecall_ld(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id_1, uint32_t rs_id_2, char* ldResult, int len_ldResult)
+sgx_status_t ecall_ld(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id_1, uint32_t rs_id_2, int* ldResult)
 {
 	sgx_status_t status;
 	ms_ecall_ld_t ms;
 	ms.ms_rs_id_1 = rs_id_1;
 	ms.ms_rs_id_2 = rs_id_2;
 	ms.ms_ldResult = ldResult;
-	ms.ms_len_ldResult = len_ldResult;
 	status = sgx_ecall(eid, 6, &ocall_table_EnclaveCompute, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
 
-sgx_status_t ecall_catt(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, char* cattResult, int len_cattResult)
+sgx_status_t ecall_catt(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, int* cattResult)
 {
 	sgx_status_t status;
 	ms_ecall_catt_t ms;
 	ms.ms_rs_id = rs_id;
 	ms.ms_cattResult = cattResult;
-	ms.ms_len_cattResult = len_cattResult;
 	status = sgx_ecall(eid, 7, &ocall_table_EnclaveCompute, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
 
-sgx_status_t ecall_fet(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, char* fetResult, int len_fetResult)
+sgx_status_t ecall_fet(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, int* fetResult)
 {
 	sgx_status_t status;
 	ms_ecall_fet_t ms;
 	ms.ms_rs_id = rs_id;
 	ms.ms_fetResult = fetResult;
-	ms.ms_len_fetResult = len_fetResult;
 	status = sgx_ecall(eid, 8, &ocall_table_EnclaveCompute, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t ecall_add_encryption_key(sgx_enclave_id_t eid, const char* strFileNameHash, uint8_t encrypted_encryption_key[32])
+{
+	sgx_status_t status;
+	ms_ecall_add_encryption_key_t ms;
+	ms.ms_strFileNameHash = strFileNameHash;
+	ms.ms_encrypted_encryption_key = (uint8_t*)encrypted_encryption_key;
+	status = sgx_ecall(eid, 9, &ocall_table_EnclaveCompute, &ms);
 	return status;
 }
 

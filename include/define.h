@@ -39,7 +39,7 @@ enum OperationType {
 };
 
 enum DataMsgType {
-  kFileNameHash = 0,
+  kFileMetaData = 0,
   kFileBody,
   kFileEnd,
   kClientError,
@@ -49,6 +49,12 @@ enum DataMsgType {
 enum SSLConnectionType {
   kCLIENTSIDE = 0, kSERVERSIDE = 1
 };
+
+typedef struct {
+  unsigned char hash[32];
+  uint32_t encrypted_privacy_budget;
+  uint8_t encrypted_file_encryption_key[32];
+} FileMetaData;
 
 typedef struct {
   union {

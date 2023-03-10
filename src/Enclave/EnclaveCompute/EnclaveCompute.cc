@@ -2,7 +2,7 @@
 #include "EnclaveCompute.h"
 #include <stdarg.h>
 #include <stdio.h> /* vsnprintf */
-#include <string.h>
+#include <string>
 #include "Utility_E2.h"
 #include <map>
 #include <math.h>
@@ -42,7 +42,10 @@ typedef struct element {
     uint8_t data[273];
 }element;
 
-std::map<uint32_t, element> records;
+std::map<std::string, std::map<uint32_t, element>> records;
+std::map<std::string, uint8_t*> keys;
+uint32_t recordSize = 0;
+
 const uint8_t kAES_256_GCM_KEY[32] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
                                       0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
                                       0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
@@ -112,23 +115,53 @@ void DecryptWithKey(uint8_t* ciphertext, const uint32_t dataSize, uint8_t* plain
 	EVP_CIPHER_CTX_free(cipherCTX);
 }
 
-void ecall_decrypt_process(uint8_t* ciphertext, uint32_t len_data) {
+void ecall_decrypt_process(const char* strFileNameHash, uint8_t* ciphertext, uint32_t len_data) {
 	SNP* snp;
 	element e;
 	uint8_t* plaintext = (uint8_t*)malloc(len_data);
-	DecryptWithKey(ciphertext, len_data, plaintext, kAES_256_GCM_KEY);
+
+	std::string hash(strFileNameHash);
+	auto encryption_key = keys[hash];
+
+	DecryptWithKey(ciphertext, len_data, plaintext, encryption_key);
+	
 	for(uint8_t* p = plaintext; p != plaintext+len_data; p += sizeof(SNP)) {
 		snp = (SNP*)p;
-		if(records.find(snp->rs_id_int) != records.end()) {
-        	printf("duplicate.\n");
-    	}
+		// if(records.find(snp->rs_id_int) != records.end()) {
+        // 	printf("duplicate.\n");
+    	// }
 		memcpy(e.counters, snp->counters, sizeof(e.counters));
 		memcpy(e.data, snp->data, sizeof(e.data));
-		records[snp->rs_id_int] = e;
+		
+		records[strFileNameHash].insert(std::make_pair(snp->rs_id_int, e));
 		// printf("rs%u %u %u %u %u\n", snp->rs_id_int, snp->counters[0], snp->counters[1], snp->counters[2], snp->counters[3]);
+		++recordSize;
 	}
 	free(plaintext);
 	// printf("size of records:%d\n", records.size());
+	printf("EnclaveCompute:current size of records:%u\n", recordSize);
+}
+
+void ecall_add_encryption_key(const char* strFileNameHash, uint8_t encrypted_encryption_key[32]) {
+	// use mk/vk to decrypt the encrypted_encryption_key
+	std::string hash(strFileNameHash);
+	records[hash] = std::map<uint32_t, element>();
+	// don't forget to free
+	uint8_t* tmp = (uint8_t*)malloc(32);
+	memcpy(tmp, encrypted_encryption_key, 32);
+	keys[hash] = tmp;
+}
+
+bool searchReocrd(uint32_t rs_id, element& e) {
+	for(auto r : records) {
+		if(r.second.find(rs_id) != r.second.end()) {
+			e = r.second[rs_id];
+			// todo
+			// r.first query enclave_budget
+			return true;
+		}
+	}
+    return false;
 }
 
 /* Function Description:
@@ -136,11 +169,12 @@ void ecall_decrypt_process(uint8_t* ciphertext, uint32_t len_data) {
 *   return 0 secceed
             1 failed
 */
-uint32_t ecall_hwe(uint32_t rs_id, char* hweResult, int len_hweResult) {
-    if(records.find(rs_id) == records.end()) {
-        return 1;
-    }
-    element e = records[rs_id];
+uint32_t ecall_hwe(uint32_t rs_id, int* hweResult) {
+	element e;
+
+	if(!searchReocrd(rs_id, e)) {
+		return 1;
+	}
 
     //printf("HWE processing starts \n");
 	//step 1. decrypt n_AA, n_Aa, n_aa and get sum n
@@ -169,19 +203,19 @@ uint32_t ecall_hwe(uint32_t rs_id, char* hweResult, int len_hweResult) {
 
 	//0 for hwe doe not hold, 1 for hwe holds
 	//hweResult = (chi_square >= 3.841)? "0":"1";
-	memcpy(hweResult, (chi_square >= 3.841)? "0":"1", 1);
+	*hweResult = (chi_square >= 3.841)? 0:1;
 
 	//printf("%s \n",hweResult);
     return 0;
 }
 
-uint32_t ecall_ld(uint32_t rs_id_1, uint32_t rs_id_2, char* ldResult, int len_ldResult) {
+uint32_t ecall_ld(uint32_t rs_id_1, uint32_t rs_id_2, int* ldResult) {
     // printf("map size = %d rs_id_1 = %u rs_id_2 = %u\n", records.size(), rs_id_1, rs_id_2);
-    if(records.find(rs_id_1) == records.end() || records.find(rs_id_2) == records.end()) {
-        return 1;
-    }
-    element e1 = records[rs_id_1];
-    element e2 = records[rs_id_2];
+
+    element e1, e2;
+	if(!searchReocrd(rs_id_1, e1) || !searchReocrd(rs_id_2, e2)) {
+		return 1;
+	}
 
     int counters[4] = {0, 0, 0, 0};
     uint8_t mask;
@@ -248,20 +282,21 @@ uint32_t ecall_ld(uint32_t rs_id_1, uint32_t rs_id_2, char* ldResult, int len_ld
 	//printf("%f \n", D_prime);
 
 	//memcpy(ldResult, input[0], strlen(input[0]) + 1);
-	memcpy(ldResult, (D_prime == 0.0)? "0":"1", 1);
+	*ldResult = (D_prime == 0.0)? 0:1;
     return 0;
 }
 
-uint32_t ecall_catt(uint32_t rs_id, char* cattResult, int len_cattResult) {
+uint32_t ecall_catt(uint32_t rs_id, int* cattResult) {
     //printf("CATT processing starts \n");
 
-    if(records.find(rs_id) == records.end()) {
-        return 1;
-    }
+	element e;
+	if(!searchReocrd(rs_id, e)) {
+		return 1;
+	}
+
     int N_AA_case_d, N_Aa_case_d, N_aa_case_d;
     
     uint8_t x, mask;
-    element e = records[rs_id];
     for(int i = 0; i < 273/2; i++) {
         for(int j = 0; j < 4; j++) {
             mask = 0b11000000 >> (2 * j);
@@ -340,7 +375,7 @@ uint32_t ecall_catt(uint32_t rs_id, char* cattResult, int len_cattResult) {
 	//df = 1, critical chi_square value = 3.841
 	//null hypothesis: no trend 
 	//cattResult = (chi_square >= 3.841)? "1":"0";
-	memcpy(cattResult, (chi_square >= 3.841)? "1":"0", 1);
+	*cattResult = (chi_square >= 3.841)? 1:0;
 	//printf("%s \n",cattResult);
 
     return 0;
@@ -863,16 +898,17 @@ double fisher23(uint32_t m11, uint32_t m12, uint32_t m13, uint32_t m21, uint32_t
 	}
 }
 
-uint32_t ecall_fet(uint32_t rs_id, char* fetResult, int len_fetResult) {
+uint32_t ecall_fet(uint32_t rs_id, int* fetResult) {
     //printf("FET processing starts \n");
 
-    if(records.find(rs_id) == records.end()) {
-        return 1;
-    }
+    element e;
+	if(!searchReocrd(rs_id, e)) {
+		return 1;
+	}
+
     int N_AA_case_d, N_Aa_case_d, N_aa_case_d;
     
     uint8_t x, mask;
-    element e = records[rs_id];
     for(int i = 0; i < 273/2; i++) {
         for(int j = 0; j < 4; j++) {
             mask = 0b11000000 >> (2 * j);
@@ -947,7 +983,7 @@ uint32_t ecall_fet(uint32_t rs_id, char* fetResult, int len_fetResult) {
 	//df = 1, critical chi_square value = 3.841
 	//null hypothesis: no statistical association between genotype and disease
 	//fetResult = (p_value < 0.05)? "1":"0";
-	memcpy(fetResult, (p_value < 0.05)? "1":"0", 1);
+	*fetResult = (p_value < 0.05)? 1:0;
 	//printf("%s \n",fetResult);
 
     return 0;
