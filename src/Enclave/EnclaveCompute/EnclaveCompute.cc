@@ -2,64 +2,23 @@
 #include "EnclaveCompute.h"
 #include <stdarg.h>
 #include <stdio.h> /* vsnprintf */
+#include <cstring>
 #include <string>
 #include "Utility_E2.h"
-#include <map>
 #include <math.h>
 #include <algorithm>
 #include <stdlib.h>
 #include "error_codes.h"
 #include <openssl/evp.h>
-
-#define UNUSED(val) (void)(val)
-
-/* --------for Fisher Exact Test function from : https://github.com/chrchang/stats/blob/master/fisher.c  --------*/
-#define SMALLISH_EPSILON 0.00000000003
-#define SMALL_EPSILON 0.0000000000001
-
-// This helps us avoid premature floating point overflow.
-#define EXACT_TEST_BIAS 0.00000000000000000000000010339757656912845935892608650874535669572651386260986328125
-
-
-std::map<sgx_enclave_id_t, dh_session_t>g_src_session_info_map;
-
-// this is expected initiator's MRSIGNER for demonstration purpose
-sgx_measurement_t g_initiator_mrsigner = {
-	{
-			0x9d, 0xc1, 0x26, 0xd1, 0x5b, 0xe4, 0xf1, 0x15, 0x0a, 0x52, 0x0c, 0x03, 0x3c, 0xc1, 0x9b, 0xa8, 
-			0x85, 0x24, 0xf6, 0xfb, 0x45, 0x76, 0xb5, 0x07, 0x43, 0xca, 0xd3, 0xb2, 0x54, 0xe2, 0x4b, 0x71     
-	}
-};
-
-typedef struct SNP {
-    uint32_t rs_id_int;
-    uint32_t counters[4];
-    uint8_t data[273];
-}SNP;
-
-typedef struct element {
-    uint32_t counters[4];
-    uint8_t data[273];
-}element;
+#include "sgx_tseal.h"
 
 std::map<std::string, std::map<uint32_t, element>> records;
 std::map<std::string, uint8_t*> keys;
 uint32_t recordSize = 0;
 
-const uint8_t kAES_256_GCM_KEY[32] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
-                                      0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
-                                      0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
-                                      0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8};
-
-const uint32_t kCRYPTO_BLOCK_SIZE = 16;
-const unsigned char gcm_aad[] = {
-    0x4d, 0x23, 0xc3, 0xce, 0xc3, 0x34, 0xb4, 0x9b, 0xdb, 0x37, 0x0c, 0x43,
-    0x7f, 0xec, 0x78, 0xde
-};
-const uint8_t iv[kCRYPTO_BLOCK_SIZE] = {0, 0, 0, 0, 
-										0, 0, 0, 0,
-										0, 0, 0, 0,
-										0, 0, 0, 0};
+uint8_t* serialized_keys = nullptr;
+uint32_t serialized_size = 0;
+char aad_mac_text[BUFSIZ] = "aad mac text";
 
 
 /* 
@@ -77,14 +36,88 @@ int printf(const char* fmt, ...)
     return (int)strnlen(buf, BUFSIZ - 1) + 1;
 }
 
-// void ecall_print_secret_key() {
-//     printf("Received secret key:");
-//     for(int i = 0; i < aes_128bit_key_len; i++) {
-//         printf("%d ", received_aes_128bit_key[i]);
-//     }
-//     printf("\n");
-//     printf("The size of map: %d\n", records.size());
-// }
+uint32_t ecall_get_sealed_data_size()
+{
+	if(serialized_keys == nullptr) {
+		// serialize the keys
+		serialized_size = keys.size() * (64 + 32);
+		serialized_keys = (uint8_t*)malloc(serialized_size);
+		uint8_t* p = serialized_keys;
+		for(auto r : keys) {
+			memcpy(p, r.first.c_str(), r.first.size());
+			p += r.first.size();
+			memcpy(p, r.second, 32);
+			p += 32;
+		}
+	}
+    return sgx_calc_sealed_data_size((uint32_t)strlen(aad_mac_text), serialized_size);
+}
+
+sgx_status_t ecall_seal_data(uint8_t* sealed_blob, uint32_t data_size)
+{
+    uint32_t sealed_data_size = sgx_calc_sealed_data_size((uint32_t)strlen(aad_mac_text), serialized_size);
+    if (sealed_data_size == UINT32_MAX)
+        return SGX_ERROR_UNEXPECTED;
+    if (sealed_data_size > data_size)
+        return SGX_ERROR_INVALID_PARAMETER;
+
+    uint8_t *temp_sealed_buf = (uint8_t *)malloc(sealed_data_size);
+    if(temp_sealed_buf == NULL)
+        return SGX_ERROR_OUT_OF_MEMORY;
+    sgx_status_t  err = sgx_seal_data((uint32_t)strlen(aad_mac_text), (const uint8_t *)aad_mac_text, serialized_size, serialized_keys, sealed_data_size, (sgx_sealed_data_t *)temp_sealed_buf);
+    if (err == SGX_SUCCESS)
+    {
+        // Copy the sealed data to outside buffer
+        memcpy(sealed_blob, temp_sealed_buf, sealed_data_size);
+    }
+
+    free(temp_sealed_buf);
+    return err;
+}
+
+sgx_status_t ecall_unseal_data(const uint8_t *sealed_blob, size_t data_size)
+{
+    uint32_t mac_text_len = sgx_get_add_mac_txt_len((const sgx_sealed_data_t *)sealed_blob);
+    uint32_t decrypt_data_len = sgx_get_encrypt_txt_len((const sgx_sealed_data_t *)sealed_blob);
+    if (mac_text_len == UINT32_MAX || decrypt_data_len == UINT32_MAX)
+        return SGX_ERROR_UNEXPECTED;
+    if(mac_text_len > data_size || decrypt_data_len > data_size)
+        return SGX_ERROR_INVALID_PARAMETER;
+
+    uint8_t *de_mac_text =(uint8_t *)malloc(mac_text_len);
+    if(de_mac_text == NULL)
+        return SGX_ERROR_OUT_OF_MEMORY;
+    uint8_t *decrypt_data = (uint8_t *)malloc(decrypt_data_len);
+    if(decrypt_data == NULL)
+    {
+        free(de_mac_text);
+        return SGX_ERROR_OUT_OF_MEMORY;
+    }
+
+    sgx_status_t ret = sgx_unseal_data((const sgx_sealed_data_t *)sealed_blob, de_mac_text, &mac_text_len, decrypt_data, &decrypt_data_len);
+    if (ret != SGX_SUCCESS)
+    {
+        free(de_mac_text);
+        free(decrypt_data);
+        return ret;
+    }
+
+    for(uint8_t* p = decrypt_data; p != decrypt_data + decrypt_data_len; p += 64+32) {
+		std::string k = std::string((char*)p, 64);
+		uint8_t* v = (uint8_t*)malloc(32);
+		memcpy(v, p+64, 32);
+		keys[k] = v;
+		printf("%s-", k.c_str());
+		for(int i = 0; i < 32; i++) {
+			printf("%x", keys[k][i]);
+		}
+		printf("\n");
+	}
+
+    free(de_mac_text);
+    free(decrypt_data);
+    return ret;
+}
 
 void DecryptWithKey(uint8_t* ciphertext, const uint32_t dataSize, uint8_t* plaintext, const uint8_t* key) {
 	int plainLen;

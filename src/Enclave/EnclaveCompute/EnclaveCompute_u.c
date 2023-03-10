@@ -65,6 +65,22 @@ typedef struct ms_ecall_add_encryption_key_t {
 	uint8_t* ms_encrypted_encryption_key;
 } ms_ecall_add_encryption_key_t;
 
+typedef struct ms_ecall_get_sealed_data_size_t {
+	uint32_t ms_retval;
+} ms_ecall_get_sealed_data_size_t;
+
+typedef struct ms_ecall_seal_data_t {
+	sgx_status_t ms_retval;
+	uint8_t* ms_sealed_blob;
+	uint32_t ms_data_size;
+} ms_ecall_seal_data_t;
+
+typedef struct ms_ecall_unseal_data_t {
+	sgx_status_t ms_retval;
+	const uint8_t* ms_sealed_blob;
+	size_t ms_data_size;
+} ms_ecall_unseal_data_t;
+
 typedef struct ms_print_string_ocall_t {
 	const char* ms_str;
 } ms_print_string_ocall_t;
@@ -327,6 +343,37 @@ sgx_status_t ecall_add_encryption_key(sgx_enclave_id_t eid, const char* strFileN
 	ms.ms_strFileNameHash = strFileNameHash;
 	ms.ms_encrypted_encryption_key = (uint8_t*)encrypted_encryption_key;
 	status = sgx_ecall(eid, 9, &ocall_table_EnclaveCompute, &ms);
+	return status;
+}
+
+sgx_status_t ecall_get_sealed_data_size(sgx_enclave_id_t eid, uint32_t* retval)
+{
+	sgx_status_t status;
+	ms_ecall_get_sealed_data_size_t ms;
+	status = sgx_ecall(eid, 10, &ocall_table_EnclaveCompute, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t ecall_seal_data(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* sealed_blob, uint32_t data_size)
+{
+	sgx_status_t status;
+	ms_ecall_seal_data_t ms;
+	ms.ms_sealed_blob = sealed_blob;
+	ms.ms_data_size = data_size;
+	status = sgx_ecall(eid, 11, &ocall_table_EnclaveCompute, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t ecall_unseal_data(sgx_enclave_id_t eid, sgx_status_t* retval, const uint8_t* sealed_blob, size_t data_size)
+{
+	sgx_status_t status;
+	ms_ecall_unseal_data_t ms;
+	ms.ms_sealed_blob = sealed_blob;
+	ms.ms_data_size = data_size;
+	status = sgx_ecall(eid, 12, &ocall_table_EnclaveCompute, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
 

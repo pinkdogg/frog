@@ -3,7 +3,10 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/include"
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src/Enclave/EnclaveBudget",
+                "${workspaceFolder}/src/Enclave/EnclaveCompute",
+                "${workspaceFolder}/src/Enclave/Include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

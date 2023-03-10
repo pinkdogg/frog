@@ -22,6 +22,10 @@ enclave {
         public uint32_t ecall_fet(uint32_t rs_id, [out] int* fetResult);
         
         public void ecall_add_encryption_key([user_check]const char* strFileNameHash, [user_check]uint8_t encrypted_encryption_key[32]);
+
+        public uint32_t ecall_get_sealed_data_size();
+		public sgx_status_t ecall_seal_data([out, size=data_size] uint8_t* sealed_blob, uint32_t data_size);
+        public sgx_status_t ecall_unseal_data([in, size=data_size] const uint8_t *sealed_blob, size_t data_size);
     };
 
     untrusted {

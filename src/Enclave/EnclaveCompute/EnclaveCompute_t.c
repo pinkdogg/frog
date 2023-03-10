@@ -91,6 +91,22 @@ typedef struct ms_ecall_add_encryption_key_t {
 	uint8_t* ms_encrypted_encryption_key;
 } ms_ecall_add_encryption_key_t;
 
+typedef struct ms_ecall_get_sealed_data_size_t {
+	uint32_t ms_retval;
+} ms_ecall_get_sealed_data_size_t;
+
+typedef struct ms_ecall_seal_data_t {
+	sgx_status_t ms_retval;
+	uint8_t* ms_sealed_blob;
+	uint32_t ms_data_size;
+} ms_ecall_seal_data_t;
+
+typedef struct ms_ecall_unseal_data_t {
+	sgx_status_t ms_retval;
+	const uint8_t* ms_sealed_blob;
+	size_t ms_data_size;
+} ms_ecall_unseal_data_t;
+
 typedef struct ms_print_string_ocall_t {
 	const char* ms_str;
 } ms_print_string_ocall_t;
@@ -648,11 +664,148 @@ static sgx_status_t SGX_CDECL sgx_ecall_add_encryption_key(void* pms)
 	return status;
 }
 
+static sgx_status_t SGX_CDECL sgx_ecall_get_sealed_data_size(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_ecall_get_sealed_data_size_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_ecall_get_sealed_data_size_t* ms = SGX_CAST(ms_ecall_get_sealed_data_size_t*, pms);
+	ms_ecall_get_sealed_data_size_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_ecall_get_sealed_data_size_t), ms, sizeof(ms_ecall_get_sealed_data_size_t))) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+	sgx_status_t status = SGX_SUCCESS;
+	uint32_t _in_retval;
+
+
+	_in_retval = ecall_get_sealed_data_size();
+	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
+		status = SGX_ERROR_UNEXPECTED;
+		goto err;
+	}
+
+err:
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_ecall_seal_data(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_ecall_seal_data_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_ecall_seal_data_t* ms = SGX_CAST(ms_ecall_seal_data_t*, pms);
+	ms_ecall_seal_data_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_ecall_seal_data_t), ms, sizeof(ms_ecall_seal_data_t))) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+	sgx_status_t status = SGX_SUCCESS;
+	uint8_t* _tmp_sealed_blob = __in_ms.ms_sealed_blob;
+	uint32_t _tmp_data_size = __in_ms.ms_data_size;
+	size_t _len_sealed_blob = _tmp_data_size;
+	uint8_t* _in_sealed_blob = NULL;
+	sgx_status_t _in_retval;
+
+	CHECK_UNIQUE_POINTER(_tmp_sealed_blob, _len_sealed_blob);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_sealed_blob != NULL && _len_sealed_blob != 0) {
+		if ( _len_sealed_blob % sizeof(*_tmp_sealed_blob) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_sealed_blob = (uint8_t*)malloc(_len_sealed_blob)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_sealed_blob, 0, _len_sealed_blob);
+	}
+	_in_retval = ecall_seal_data(_in_sealed_blob, _tmp_data_size);
+	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
+		status = SGX_ERROR_UNEXPECTED;
+		goto err;
+	}
+	if (_in_sealed_blob) {
+		if (memcpy_verw_s(_tmp_sealed_blob, _len_sealed_blob, _in_sealed_blob, _len_sealed_blob)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_sealed_blob) free(_in_sealed_blob);
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_ecall_unseal_data(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_ecall_unseal_data_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_ecall_unseal_data_t* ms = SGX_CAST(ms_ecall_unseal_data_t*, pms);
+	ms_ecall_unseal_data_t __in_ms;
+	if (memcpy_s(&__in_ms, sizeof(ms_ecall_unseal_data_t), ms, sizeof(ms_ecall_unseal_data_t))) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+	sgx_status_t status = SGX_SUCCESS;
+	const uint8_t* _tmp_sealed_blob = __in_ms.ms_sealed_blob;
+	size_t _tmp_data_size = __in_ms.ms_data_size;
+	size_t _len_sealed_blob = _tmp_data_size;
+	uint8_t* _in_sealed_blob = NULL;
+	sgx_status_t _in_retval;
+
+	CHECK_UNIQUE_POINTER(_tmp_sealed_blob, _len_sealed_blob);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_sealed_blob != NULL && _len_sealed_blob != 0) {
+		if ( _len_sealed_blob % sizeof(*_tmp_sealed_blob) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		_in_sealed_blob = (uint8_t*)malloc(_len_sealed_blob);
+		if (_in_sealed_blob == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_sealed_blob, _len_sealed_blob, _tmp_sealed_blob, _len_sealed_blob)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	_in_retval = ecall_unseal_data((const uint8_t*)_in_sealed_blob, _tmp_data_size);
+	if (memcpy_verw_s(&ms->ms_retval, sizeof(ms->ms_retval), &_in_retval, sizeof(_in_retval))) {
+		status = SGX_ERROR_UNEXPECTED;
+		goto err;
+	}
+
+err:
+	if (_in_sealed_blob) free(_in_sealed_blob);
+	return status;
+}
+
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[10];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[13];
 } g_ecall_table = {
-	10,
+	13,
 	{
 		{(void*)(uintptr_t)sgx_session_request, 0, 0},
 		{(void*)(uintptr_t)sgx_exchange_report, 0, 0},
@@ -664,25 +817,28 @@ SGX_EXTERNC const struct {
 		{(void*)(uintptr_t)sgx_ecall_catt, 0, 0},
 		{(void*)(uintptr_t)sgx_ecall_fet, 0, 0},
 		{(void*)(uintptr_t)sgx_ecall_add_encryption_key, 0, 0},
+		{(void*)(uintptr_t)sgx_ecall_get_sealed_data_size, 0, 0},
+		{(void*)(uintptr_t)sgx_ecall_seal_data, 0, 0},
+		{(void*)(uintptr_t)sgx_ecall_unseal_data, 0, 0},
 	}
 };
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[10][10];
+	uint8_t entry_table[10][13];
 } g_dyn_entry_table = {
 	10,
 	{
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 	}
 };
 

@@ -29,6 +29,9 @@ uint32_t ecall_ld(uint32_t rs_id_1, uint32_t rs_id_2, int* ldResult);
 uint32_t ecall_catt(uint32_t rs_id, int* cattResult);
 uint32_t ecall_fet(uint32_t rs_id, int* fetResult);
 void ecall_add_encryption_key(const char* strFileNameHash, uint8_t encrypted_encryption_key[32]);
+uint32_t ecall_get_sealed_data_size(void);
+sgx_status_t ecall_seal_data(uint8_t* sealed_blob, uint32_t data_size);
+sgx_status_t ecall_unseal_data(const uint8_t* sealed_blob, size_t data_size);
 
 sgx_status_t SGX_CDECL print_string_ocall(const char* str);
 sgx_status_t SGX_CDECL sgx_oc_cpuidex(int cpuinfo[4], int leaf, int subleaf);

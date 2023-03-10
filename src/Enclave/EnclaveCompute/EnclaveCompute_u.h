@@ -71,6 +71,9 @@ sgx_status_t ecall_ld(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id_1, 
 sgx_status_t ecall_catt(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, int* cattResult);
 sgx_status_t ecall_fet(sgx_enclave_id_t eid, uint32_t* retval, uint32_t rs_id, int* fetResult);
 sgx_status_t ecall_add_encryption_key(sgx_enclave_id_t eid, const char* strFileNameHash, uint8_t encrypted_encryption_key[32]);
+sgx_status_t ecall_get_sealed_data_size(sgx_enclave_id_t eid, uint32_t* retval);
+sgx_status_t ecall_seal_data(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* sealed_blob, uint32_t data_size);
+sgx_status_t ecall_unseal_data(sgx_enclave_id_t eid, sgx_status_t* retval, const uint8_t* sealed_blob, size_t data_size);
 
 #ifdef __cplusplus
 }

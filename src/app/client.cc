@@ -1,5 +1,5 @@
 #include <iostream>
-
+#include <fstream>
 #include "CryptoPrimitive.h"
 #include "FileSender.h"
 #include "OrderSender.h"
@@ -117,10 +117,22 @@ int main(int argc, char* argv[])
 
       std::string err;
       Json resultJson = Json::parse(std::string((char*)result, resultSize), err);
-      std::cout << "LD:" << resultJson["LD"].int_value() << std::endl;
-      std::cout << "HWE:" << resultJson["HWE"].int_value() << std::endl;
-      std::cout << "CATT:" << resultJson["CATT"].int_value() << std::endl;
-      std::cout << "FET:" << resultJson["FET"].int_value() << std::endl;
+      int ld_result = resultJson["LD"].int_value();
+      int hwe_result = resultJson["HWE"].int_value();
+      int catt_result = resultJson["CATT"].int_value();
+      int fet_result = resultJson["FET"].int_value();
+
+      std::cout << "LD:" << ld_result << " ";
+      std::cout << "HWE:" << hwe_result << " ";
+      std::cout << "CATT:" << catt_result << " ";
+      std::cout << "FET:" << fet_result << std::endl;
+
+      std::ofstream resultFile("result", std::ios::out);
+      resultFile.write((char*)&ld_result, sizeof(int));
+      resultFile.write((char*)&hwe_result, sizeof(int));
+      resultFile.write((char*)&catt_result, sizeof(int));
+      resultFile.write((char*)&fet_result, sizeof(int));
+
       free(result);
       break;
     }
