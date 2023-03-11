@@ -1,3 +1,7 @@
 data/*
 bin/data/gwas/*
 build/*
+
+!data/.gitkeep
+!bin/data/gwas/.gitkeep
+!build/.gitkeep
