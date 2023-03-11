@@ -4,14 +4,25 @@ enclave {
     include "dh_session_protocol.h"
 
     trusted {
+        // inter-enclave communication
         public uint32_t ecall_create_session();
-        public uint32_t ecall_transfer_secret_key();
         public uint32_t ecall_close_session();
+        public uint32_t ecall_transfer_secret_key();
+
+        // process data
         public void ecall_add_privacy_budget([user_check]const char* strFileNameHash, uint32_t encrypted_privacy_budget);
+        public int ecall_query_budget([in, string]const char* strFileNameHash);
+
+        // seal/unseal data
+        public uint32_t ecall_budget_get_sealed_data_size();
+		public sgx_status_t ecall_budget_seal_data([out, size=data_size] uint8_t* sealed_blob, uint32_t data_size);
+        public sgx_status_t ecall_budget_unseal_data([in, size=data_size] const uint8_t *sealed_blob, size_t data_size);
     };
 
     untrusted {
         void print_string_ocall([in, string] const char *str);
+
+        // inter-enclave communication
         uint32_t session_request_ocall([out] sgx_dh_msg1_t *dh_msg1,[out] uint32_t *session_id);
         uint32_t exchange_report_ocall([in] sgx_dh_msg2_t *dh_msg2, [out] sgx_dh_msg3_t *dh_msg3, uint32_t session_id);
         uint32_t send_request_ocall(uint32_t session_id, [in, size = req_message_size] secure_message_t* req_message, size_t req_message_size, size_t max_payload_size, [out, size=resp_message_size] secure_message_t* resp_message, size_t resp_message_size);

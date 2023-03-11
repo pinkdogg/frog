@@ -54,11 +54,9 @@ add_executable(server
                 src/Enclave/EnclaveCompute/EnclaveCompute_u.c 
                 src/server/UntrustedEnclaveMessageExchange.cc
                 src/comm/CryptoPrimitive.cc)
+                
 target_link_libraries(server OpenSSL::SSL Boost::thread)
 target_link_libraries(server sgx_urts_sim sgx_uae_service_sim sgx_usgxssl)
 
 add_executable(compress_vcf
                 src/app/compress_vcf.cc)
-
-add_executable(test_signal          
-                src/app/test_signal.cc)

@@ -9,26 +9,30 @@ enclave {
     from "sgx_pthread.edl" import *;
 
     trusted {
+        // inter-enclave communication
         public uint32_t session_request([out] sgx_dh_msg1_t *dh_msg1, [out] uint32_t *session_id);
         public uint32_t exchange_report([in] sgx_dh_msg2_t *dh_msg2, [out] sgx_dh_msg3_t *dh_msg3, uint32_t session_id);
         public uint32_t generate_response([in, size = req_message_size] secure_message_t* req_message, size_t req_message_size, size_t max_payload_size, [out, size=resp_message_size] secure_message_t* resp_message, size_t resp_message_size, uint32_t session_id);
         public uint32_t end_session(uint32_t session_id);
-        // public void ecall_print_secret_key();
-        public void ecall_decrypt_process([user_check]const char* strFileNameHash, [user_check] uint8_t* ciphertext, uint32_t len_data);
         
+        // gwas operation
         public uint32_t ecall_hwe(uint32_t rs_id, [out] int* hweResult);
         public uint32_t ecall_ld(uint32_t rs_id_1, uint32_t rs_id_2, [out] int* ldResult);
         public uint32_t ecall_catt(uint32_t rs_id, [out] int* cattResult);
         public uint32_t ecall_fet(uint32_t rs_id, [out] int* fetResult);
         
+        // process data
+        public void ecall_decrypt_process([user_check]const char* strFileNameHash, [user_check] uint8_t* ciphertext, uint32_t len_data);
         public void ecall_add_encryption_key([user_check]const char* strFileNameHash, [user_check]uint8_t encrypted_encryption_key[32]);
 
-        public uint32_t ecall_get_sealed_data_size();
-		public sgx_status_t ecall_seal_data([out, size=data_size] uint8_t* sealed_blob, uint32_t data_size);
-        public sgx_status_t ecall_unseal_data([in, size=data_size] const uint8_t *sealed_blob, size_t data_size);
+        // seal/unseal data
+        public uint32_t ecall_compute_get_sealed_data_size();
+		public sgx_status_t ecall_compute_seal_data([out, size=data_size] uint8_t* sealed_blob, uint32_t data_size);
+        public sgx_status_t ecall_compute_unseal_data([in, size=data_size] const uint8_t *sealed_blob, size_t data_size);
     };
 
     untrusted {
         void print_string_ocall([in, string] const char *str);
+        int ocall_query_budget([in, string] const char* strFileNameHash);
     };
 };

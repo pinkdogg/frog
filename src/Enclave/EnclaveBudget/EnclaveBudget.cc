@@ -1,10 +1,9 @@
 #include "EnclaveBudget_t.h"
 #include "EnclaveBudget.h"
-
 #include <stdarg.h>
-#include <stdio.h> /* vsnprintf */
+#include <stdio.h>
+#include <cstring>
 #include <string>
-
 #include "dh_session_protocol.h"
 #include "error_codes.h"
 #include "EnclaveMessageExchange.h"
@@ -13,32 +12,12 @@
 #include <time.h>
 #include <map>
 
-#define UNUSED(val) (void)(val)
-
-#define RESPONDER_PRODID 1
-
-std::map<sgx_enclave_id_t, dh_session_t>g_src_session_info_map;
-
-dh_session_t g_session;
-
-// This is hardcoded responder enclave's MRSIGNER for demonstration purpose. The content aligns to responder enclave's signing key
-sgx_measurement_t g_responder_mrsigner = {
-	{
-		0x6c, 0x44, 0x40, 0x99, 0xd3, 0x47, 0x84, 0xc9, 0x41, 0x52, 0x65, 0x20, 0xbc, 0xad, 0x93, 0xb2, 
-        0x58, 0x9c, 0x92, 0x4f, 0x9b, 0xdf, 0xa7, 0x7b, 0xcb, 0xeb, 0x3b, 0xaa, 0xfe, 0x14, 0x92, 0xf8
-	}
-};
-
-// secret key
-const size_t aes_128bit_key_len = 16;
-uint8_t aes_128bit_key[aes_128bit_key_len] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-
 std::map<std::string, uint32_t> privacyBudgetDB;
 
-/* Function Description:
- *   This is ECALL routine to create ECDH session.
- *   When it succeeds to create ECDH session, the session context is saved in g_session.
- * */
+uint8_t* serialized_db = nullptr;
+uint32_t serialized_size = 0;
+char aad_mac_text[BUFSIZ] = "aad mac text";
+
 uint32_t ecall_create_session()
 {
     return create_session(&g_session);
@@ -58,20 +37,100 @@ uint32_t ecall_close_session() {
     return ke_status;
 }
 
-/*
- * printf: 
- *   Invokes OCALL to display the enclave buffer to the terminal.
- */
-int printf(const char* fmt, ...)
-{
-    char buf[BUFSIZ] = { '\0' };
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(buf, BUFSIZ, fmt, ap);
-    va_end(ap);
-    print_string_ocall(buf);
-    return (int)strnlen(buf, BUFSIZ - 1) + 1;
+int ecall_query_budget(const char* strFileNameHash) {
+    std::string fileNameHash(strFileNameHash);
+    printf("%s\n", strFileNameHash);
+    if(privacyBudgetDB.find(fileNameHash) == privacyBudgetDB.end()) {
+        return 1;
+    }
+    printf("EnclaveBudget:file %s budget, %d\n", strFileNameHash, privacyBudgetDB[fileNameHash]);
+    return 0;
 }
+
+uint32_t ecall_budget_get_sealed_data_size()
+{
+	if(serialized_db == nullptr) {
+		// serialize the keys
+		serialized_size = privacyBudgetDB.size() * (64 + 4);
+		serialized_db = (uint8_t*)malloc(serialized_size);
+		uint8_t* p = serialized_db;
+		for(auto r : privacyBudgetDB) {
+			memcpy(p, r.first.c_str(), r.first.size());
+			p += r.first.size();
+			memcpy(p, &r.second, 4);
+			p += 4;
+		}
+	}
+    return sgx_calc_sealed_data_size((uint32_t)strlen(aad_mac_text), serialized_size);
+}
+
+sgx_status_t ecall_budget_seal_data(uint8_t* sealed_blob, uint32_t data_size)
+{
+    uint32_t sealed_data_size = sgx_calc_sealed_data_size((uint32_t)strlen(aad_mac_text), serialized_size);
+    if (sealed_data_size == UINT32_MAX)
+        return SGX_ERROR_UNEXPECTED;
+    if (sealed_data_size > data_size)
+        return SGX_ERROR_INVALID_PARAMETER;
+
+    uint8_t *temp_sealed_buf = (uint8_t *)malloc(sealed_data_size);
+    if(temp_sealed_buf == NULL)
+        return SGX_ERROR_OUT_OF_MEMORY;
+    sgx_status_t  err = sgx_seal_data((uint32_t)strlen(aad_mac_text), (const uint8_t *)aad_mac_text, serialized_size, serialized_db, sealed_data_size, (sgx_sealed_data_t *)temp_sealed_buf);
+    if (err == SGX_SUCCESS)
+    {
+        // Copy the sealed data to outside buffer
+        memcpy(sealed_blob, temp_sealed_buf, sealed_data_size);
+    }
+
+    free(temp_sealed_buf);
+    return err;
+}
+
+sgx_status_t ecall_budget_unseal_data(const uint8_t *sealed_blob, size_t data_size)
+{
+    uint32_t mac_text_len = sgx_get_add_mac_txt_len((const sgx_sealed_data_t *)sealed_blob);
+    uint32_t decrypt_data_len = sgx_get_encrypt_txt_len((const sgx_sealed_data_t *)sealed_blob);
+    if (mac_text_len == UINT32_MAX || decrypt_data_len == UINT32_MAX)
+        return SGX_ERROR_UNEXPECTED;
+    if(mac_text_len > data_size || decrypt_data_len > data_size)
+        return SGX_ERROR_INVALID_PARAMETER;
+
+    uint8_t *de_mac_text =(uint8_t *)malloc(mac_text_len);
+    if(de_mac_text == NULL)
+        return SGX_ERROR_OUT_OF_MEMORY;
+    uint8_t *decrypt_data = (uint8_t *)malloc(decrypt_data_len);
+    if(decrypt_data == NULL)
+    {
+        free(de_mac_text);
+        return SGX_ERROR_OUT_OF_MEMORY;
+    }
+
+    sgx_status_t ret = sgx_unseal_data((const sgx_sealed_data_t *)sealed_blob, de_mac_text, &mac_text_len, decrypt_data, &decrypt_data_len);
+    if (ret != SGX_SUCCESS)
+    {
+        free(de_mac_text);
+        free(decrypt_data);
+        return ret;
+    }
+
+    for(uint8_t* p = decrypt_data; p != decrypt_data + decrypt_data_len; p += 64+4) {
+		std::string k = std::string((char*)p, 64);
+		uint32_t v = *(uint32_t*)(p+64);
+		privacyBudgetDB[k] = v;
+		printf("%s - %d\n", k.c_str(), privacyBudgetDB[k]);
+	}
+    free(de_mac_text);
+    free(decrypt_data);
+    return ret;
+}
+
+void ecall_add_privacy_budget(const char* strFileNameHash, uint32_t encrypted_privacy_budget) {
+    // use mk/vk to decrypt encrypted_privacy_budgeet
+    std::string hash(strFileNameHash);
+    privacyBudgetDB[hash] = encrypted_privacy_budget;
+    printf("EnclaveBudget:%s---%u\n", strFileNameHash, encrypted_privacy_budget);
+}
+
 
 uint32_t message_exchange(uint8_t* secret_data, size_t secret_data_size) {
     ATTESTATION_STATUS ke_status = SUCCESS;
@@ -193,66 +252,3 @@ extern "C" uint32_t message_exchange_response_generator(char* decrypted_data,
 
     return SUCCESS;
 }
-
-void ecall_add_privacy_budget(const char* strFileNameHash, uint32_t encrypted_privacy_budget) {
-    // use mk/vk to decrypt encrypted_privacy_budgeet
-    std::string hash(strFileNameHash);
-    privacyBudgetDB[hash] = encrypted_privacy_budget;
-    printf("EnclaveBudget:%s---%u\n", strFileNameHash, encrypted_privacy_budget);
-}
-
-// void ecall_encrypt_data(uint8_t* plaintext, uint8_t* ciphertext, uint32_t len_data) {
-//     sgx_aes_gcm_data_t *message_aes_gcm_data = (sgx_aes_gcm_data_t *)ciphertext;
-//     memset(message_aes_gcm_data->reserved, 'a', sizeof(message_aes_gcm_data->reserved));
-//     const uint8_t* p_aad = (const uint8_t*)(" ");
-//     uint32_t p_len = 0;
-//     sgx_status_t status;
-
-//     message_aes_gcm_data->payload_size = len_data;
-//     status = sgx_rijndael128GCM_encrypt(
-//         (const sgx_aes_gcm_128bit_key_t*)aes_128bit_key, plaintext, len_data,
-//                 message_aes_gcm_data->payload, 
-//                 reinterpret_cast<uint8_t*>(&message_aes_gcm_data->reserved), 
-//                 sizeof(message_aes_gcm_data->reserved),
-//                 p_aad, p_len, &message_aes_gcm_data->payload_tag);
-
-
-//     // printf("len_data = %u\n", len_data);
-//     // printf("plaintext:");
-//     // for(int i = 0; i < len_data; i++) {
-//     //     printf("%x ", plaintext[i]);
-//     // }
-//     // printf("\n");
-//     // printf("ciphertext:");
-//     // for(int i = 0; i < len_data; i++) {
-//     //     printf("%x ", ciphertext[i]);
-//     // }
-//     // printf("\n");
-// }
-
-// void ecall_rencrypt_data(uint8_t* ciphertext, uint32_t len_data) {
-//     uint8_t iv[12];
-//     memset(iv, 0, sizeof(iv));
-//     const uint8_t* p_aad = (const uint8_t*)(" ");
-//     uint32_t p_len = 0;
-//     sgx_status_t status;
-
-//     uint8_t* plaintext = (uint8_t*)malloc(len_data);
-
-//     // use original key to decrypt the data
-//     status = sgx_rijndael128GCM_decrypt(
-//         (const sgx_aes_gcm_128bit_key_t*)aes_128bit_key, 
-//         ciphertext, len_data, plaintext,
-//         iv, sizeof(iv), p_aad, p_len, nullptr);
-    
-//     // generate new key
-//     // srand(time(nullptr));
-//     // for(int i = 0; i < aes_128bit_key_len; i++) {
-//     //     aes_128bit_key[i] = rand() % 255;
-//     // }
-
-//     // encrypt the data
-//     status = sgx_rijndael128GCM_encrypt(
-//         (const sgx_aes_gcm_128bit_key_t*)aes_128bit_key, plaintext, len_data,
-//                 ciphertext, iv, sizeof(iv), p_aad, p_len, nullptr);
-// }

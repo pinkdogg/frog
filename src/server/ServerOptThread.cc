@@ -6,8 +6,8 @@
 
 ServerOptThread::ServerOptThread(std::shared_ptr<SSLConnection> sslConnection)
   :sslConnection_(sslConnection), fileReceiver_(sslConnection),
-      orderReceiver_(sslConnection){
-
+      orderReceiver_(sslConnection) {
+        
 }
 
 ServerOptThread::~ServerOptThread() {

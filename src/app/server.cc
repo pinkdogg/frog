@@ -1,115 +1,39 @@
-#include <iostream>
+#include <map>
+#include <filesystem>
+#include <csignal>
 #include "SSLConnection.h"
 #include "ServerOptThread.h"
 #include "CryptoPrimitive.h"
-#include <map>
-#include <filesystem>
-#include <fstream>
-#include <csignal>
-
-#include <sgx_urts.h>
-
 #include "EnclaveBudget_u.h"
 #include "EnclaveCompute_u.h"
+#include "server.h"
 
 #define ENCLAVE_BUDGET_PATH "../src/Enclave/EnclaveBudget/libenclave_budget.signed.so"
 #define ENCLAVE_COMPUTE_PATH "../src/Enclave/EnclaveCompute/libenclave_compute.signed.so"
 
 #define BUDGET_SEALED_DATA_FILE "sealed_budget_data"
 #define COMPUTE_SEALED_DATA_FILE "sealed_compute_data"
+#define DATA_DIR "./data/gwas"
 
 sgx_enclave_id_t budget_enclave_id = 0, compute_enclave_id = 0;
 CryptoPrimitive cryptoPrimitive(kSHA256, kAES_256_GCM);
 
-void print_string_ocall(const char *str) {
-    printf("%s", str);
-}
-
-static bool write_buf_to_file(const char *filename, const uint8_t *buf, size_t bsize, long offset)
-{
-    if (filename == NULL || buf == NULL || bsize == 0)
-        return false;
-    std::ofstream ofs(filename, std::ios::binary | std::ios::out);
-    if (!ofs.good())
-    {
-        std::cout << "Failed to open the file \"" << filename << "\"" << std::endl;
-        return false;
-    }
-    ofs.seekp(offset, std::ios::beg);
-    ofs.write(reinterpret_cast<const char*>(buf), bsize);
-    if (ofs.fail())
-    {
-        std::cout << "Failed to write the file \"" << filename << "\"" << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-static size_t get_file_size(const char *filename)
-{
-    std::ifstream ifs(filename, std::ios::in | std::ios::binary);
-    if (!ifs.good())
-    {
-        std::cout << "Failed to open the file \"" << filename << "\"" << std::endl;
-        return -1;
-    }
-    ifs.seekg(0, std::ios::end);
-    size_t size = (size_t)ifs.tellg();
-    return size;
-}
-
-static bool read_file_to_buf(const char *filename, uint8_t *buf, size_t bsize)
-{
-    if (filename == NULL || buf == NULL || bsize == 0)
-        return false;
-    std::ifstream ifs(filename, std::ios::binary | std::ios::in);
-    if (!ifs.good())
-    {
-        std::cout << "Failed to open the file \"" << filename << "\"" << std::endl;
-        return false;
-    }
-    ifs.read(reinterpret_cast<char *> (buf), bsize);
-    if (ifs.fail())
-    {
-        std::cout << "Failed to read the file \"" << filename << "\"" << std::endl;
-        return false;
-    }
-    return true;
-}
-
-void initialize_enclave() {
-    int update = 0;
-    sgx_launch_token_t token = {0};
-    sgx_status_t status;
-    uint32_t ret_status;
-
-  // load budget and compute enclaves
-  if (SGX_SUCCESS != sgx_create_enclave(ENCLAVE_BUDGET_PATH, SGX_DEBUG_FLAG, &token, &update, &budget_enclave_id, NULL)
-      || SGX_SUCCESS != sgx_create_enclave(ENCLAVE_COMPUTE_PATH, SGX_DEBUG_FLAG, &token, &update, &compute_enclave_id, NULL)) {
-      printf("failed to load enclave.\n");
-      exit(EXIT_FAILURE);
+int ocall_query_budget(const char* strFileNameHash) {
+  int ret = 1;
+  sgx_status_t status = ecall_query_budget(budget_enclave_id, &ret, strFileNameHash);
+  if(status != SGX_SUCCESS) {
+    return 1;
   }
-  printf("succeed to load enclaves.\n");
+  return ret;
+}
 
-  // Read the sealed blob from the file
-  size_t fsize = get_file_size("enclave_compute");
-  uint8_t *temp_buf = (uint8_t *)malloc(fsize);
-  if(read_file_to_buf("enclave_compute", temp_buf, fsize)) {
-    // Unseal the sealed blob
-    sgx_status_t retval;
-    sgx_status_t ret = ecall_unseal_data(compute_enclave_id, &retval, temp_buf, fsize);
-  }
-  free(temp_buf);
-
-  // load files in directory ./data/gwas/
-  const std::filesystem::path gwas{"./data/gwas"};
-
+void load_data(char* dirPath) {
+  const std::filesystem::path gwas{dirPath};
   uint8_t* ciphertext = (uint8_t*)malloc(kREADSIZE);
   uint32_t len;
 
   for(auto const& dir_entry : std::filesystem::directory_iterator(gwas)) {
-    std::cout << dir_entry.path() << std::endl;
+    std::cout << "loading file: " << dir_entry.path() << std::endl;
     std::ifstream file(dir_entry.path(), std::ios::in | std::ios::binary);
 
     std::string fileName;
@@ -132,27 +56,51 @@ void initialize_enclave() {
   }
   free(ciphertext);
 }
+void initialize_enclave() {
+    int update = 0;
+    sgx_launch_token_t token = {0};
+    sgx_status_t status;
+    uint32_t ret_status;
+
+  // load budget and compute enclaves
+  if (SGX_SUCCESS != sgx_create_enclave(ENCLAVE_BUDGET_PATH, SGX_DEBUG_FLAG, &token, &update, &budget_enclave_id, NULL)
+      || SGX_SUCCESS != sgx_create_enclave(ENCLAVE_COMPUTE_PATH, SGX_DEBUG_FLAG, &token, &update, &compute_enclave_id, NULL)) {
+      printf("failed to load enclave.\n");
+      exit(EXIT_FAILURE);
+  }
+  printf("succeed to load enclaves.\n");
+
+  // unseal data
+  ComputeUnSealData(compute_enclave_id, COMPUTE_SEALED_DATA_FILE);
+  BudgetUnSealData(budget_enclave_id, BUDGET_SEALED_DATA_FILE);
+
+  // load files in directory ./data/gwas/
+  load_data(DATA_DIR);
+}
 
 void signalHandler(int sigNum) {
   std::cout << "Sealing data." << std::endl;
-  
-  
-  // Get the sealed data size
+  // Get the sealed data size of compute enclave
   uint32_t sealed_data_size = 0;
-  sgx_status_t ret = ecall_get_sealed_data_size(compute_enclave_id, &sealed_data_size);
-  
+  sgx_status_t ret = ecall_compute_get_sealed_data_size(compute_enclave_id, &sealed_data_size);
   uint8_t *temp_sealed_buf = (uint8_t *)malloc(sealed_data_size);
   sgx_status_t retval;
-  ret = ecall_seal_data(compute_enclave_id, &retval, temp_sealed_buf, sealed_data_size);
-  
-  // Save the sealed blob
-  (write_buf_to_file("enclave_compute", temp_sealed_buf, sealed_data_size, 0) == false);
-
+  ret = ecall_compute_seal_data(compute_enclave_id, &retval, temp_sealed_buf, sealed_data_size);
+  // Save to file
+  write_buf_to_file(COMPUTE_SEALED_DATA_FILE, temp_sealed_buf, sealed_data_size, 0);
   free(temp_sealed_buf);
   sgx_destroy_enclave(compute_enclave_id);
 
+  // Get the sealed data size of budget enclave
+  sealed_data_size = 0;
+  ret = ecall_budget_get_sealed_data_size(budget_enclave_id, &sealed_data_size);
+  temp_sealed_buf = (uint8_t *)malloc(sealed_data_size);
+  ret = ecall_budget_seal_data(budget_enclave_id, &retval, temp_sealed_buf, sealed_data_size);
+  // Save to file
+  write_buf_to_file(BUDGET_SEALED_DATA_FILE, temp_sealed_buf, sealed_data_size, 0);
+  free(temp_sealed_buf);
+  sgx_destroy_enclave(compute_enclave_id);
   std::cout << "Sealing data succeeded." << std::endl;
-
   exit(sigNum);
 }
 
